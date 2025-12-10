@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>DCM 5-Year SCD Risk Calculator</title>
+<style>
+  :root{
+    --icd-red:#b30000;
+    --icd-red-2:#cc0000;
+    --bg:#f3f5f6;
+    --card:#ffffff;
+    --muted:#7a7a7a;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#fdecec 0%, #fff7f7 40%, var(--bg) 100%);font-family:Inter, "Helvetica Neue", Arial, sans-serif;color:#222;}
+  .wrap{max-width:560px;margin:26px auto;padding:18px;}
+  .header{
+    background:linear-gradient(90deg,var(--icd-red),var(--icd-red-2));
+    color:#fff;padding:18px;border-radius:12px 12px 10px 10px; text-align:center; box-shadow:0 6px 20px rgba(179,0,0,0.18);
+  }
+  .header h1{margin:0;font-size:20px;letter-spacing:0.4px}
+  .card{background:var(--card);border-radius:14px;padding:18px;margin-top:-10px; box-shadow:0 6px 24px rgba(10,10,10,0.06); border-top:4px solid rgba(179,0,0,0.12);}
+  label{display:block;font-weight:600;margin-top:12px;font-size:14px;}
+  select,input[type="number"]{width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid #d0d0d0;font-size:15px;box-sizing:border-box}
+  .row{display:flex;gap:10px}
+  .col{flex:1}
+  .muted{color:var(--muted);font-size:13px;margin-top:6px}
+  .btn{width:100%;margin-top:18px;padding:12px;border-radius:10px;border:0;background:linear-gradient(90deg,var(--icd-red),var(--icd-red-2));color:white;font-weight:700;font-size:16px;cursor:pointer}
+  .btn:hover{filter:brightness(1.02)}
+  #result{margin-top:18px;padding:14px;border-radius:10px;text-align:center;font-weight:700;font-size:20px}
+  .low{background:#e6fbec;color:#086b08;border:1px solid #d6f3d6}
+  .moderate{background:#fff9e6;color:#b36b00;border:1px solid #fbedd1}
+  .high{background:#fff0f0;color:#b30000;border:1px solid #ffdede}
+  .info{font-size:13px;color:#444;margin-top:10px}
+  .credit{
+    margin-top:14px;background:#fff;border-radius:10px;padding:12px;border-left:4px solid var(--icd-red);font-size:13px;color:#333;
+  }
+  .footer{margin-top:14px;text-align:center;color:#666;font-size:13px}
+  a.doi{color:var(--icd-red);font-weight:600;text-decoration:none}
+  .small{font-size:12px;color:#555;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header" role="banner">
+      <h1>DCM • 5-Year SCD / SVA Risk Calculator</h1>
+      <div class="small">Model: Kayvanpour et al., Int J Cardiol. 2021 (DOI linked below)</div>
+    </div>
+
+    <div class="card" role="main" aria-labelledby="calc-title">
+      <div id="calc-title" style="display:none">Calculator</div>
+
+      <label>Sex</label>
+      <select id="sex" aria-label="Sex">
+        <option value="1">Male</option>
+        <option value="0">Female</option>
+      </select>
+
+      <label>History of non-sustained VT (nsVT)</label>
+      <select id="nsvt" aria-label="History of nsVT">
+        <option value="1">Yes</option>
+        <option value="0">No</option>
+      </select>
+
+      <label>History of syncope (unexplained / probably cardiac)</label>
+      <select id="syncope" aria-label="History of syncope">
+        <option value="1">Yes</option>
+        <option value="0">No</option>
+      </select>
+
+      <label>Family history of cardiomyopathy</label>
+      <select id="fam" aria-label="Family history of cardiomyopathy">
+        <option value="1">Yes</option>
+        <option value="0">No</option>
+      </select>
+
+      <div class="row">
+        <div class="col">
+          <label>Native QRS duration (ms)</label>
+          <input id="qrs" type="number" min="0" step="1" placeholder="e.g. 92" aria-label="QRS duration">
+        </div>
+        <div class="col">
+          <label>Left ventricular ejection fraction (%)</label>
+          <input id="lvef" type="number" min="1" max="100" step="0.1" placeholder="e.g. 52" aria-label="LVEF">
+        </div>
+      </div>
+
+      <label>History of atrial fibrillation / atrial tachycardia</label>
+      <select id="af" aria-label="History of AF">
+        <option value="1">Yes</option>
+        <option value="0" selected>No</option>
+      </select>
+
+      <label>Late gadolinium enhancement (LGE) on CMR</label>
+      <select id="lge" aria-label="LGE presence">
+        <option value="1">Present</option>
+        <option value="0" selected>Absent / Not detected</option>
+      </select>
+      <div class="muted">LGE coefficient used = ln(HR) where HR reported as 1.72 → ≈ 0.5423</div>
+
+      <button class="btn" onclick="calcRisk()" aria-label="Calculate risk">Calculate risk</button>
+
+      <div id="result" aria-live="polite"></div>
+
+      <div class="info" id="icd-note" style="display:none"></div>
+
+      <div class="credit" aria-label="Study credit">
+        <strong>Source (model & coefficients):</strong><br>
+        Kayvanpour E, Sammani A, Sedaghat-Hamedani F, et al.  
+        <em>"A novel risk model for predicting potentially life-threatening arrhythmias in non-ischemic dilated cardiomyopathy (DCM-SVA risk model)"</em>,  
+        <strong>International Journal of Cardiology</strong> 2021.<br>
+        DOI: <a class="doi" href="https://doi.org/10.1016/j.ijcard.2021.07.002" target="_blank" rel="noopener">10.1016/j.ijcard.2021.07.002</a>
+      </div>
+
+      <div class="footer">
+        Designed & implemented by <strong>Dr Patryk Onoszko</strong> — For educational & clinical decision support; interpret with clinical judgement.
+      </div>
+    </div>
+  </div>
+
+<script>
+  // coefficients from Kayvanpour et al. (Int J Cardiol 2021)
+  // LP = 0.25*Sex + 0.84*nsVT + 0.57*Syncope + 0.47*Fam + 0.007*QRS + (-0.04)*LVEF + 0.38*AF + beta_LGE*LGE
+  // S0(5y) = 0.9044804
+  const betaLGE = 0.5423; // ln(1.72) ≈ 0.5423
+
+  function calcRisk(){
+    // read values
+    const sex = Number(document.getElementById('sex').value);
+    const nsvt = Number(document.getElementById('nsvt').value);
+    const syncope = Number(document.getElementById('syncope').value);
+    const fam = Number(document.getElementById('fam').value);
+    const qrsV = Number(document.getElementById('qrs').value);
+    const lvefV = Number(document.getElementById('lvef').value);
+    const af = Number(document.getElementById('af').value);
+    const lge = Number(document.getElementById('lge').value);
+
+    // basic input validation
+    const resultEl = document.getElementById('result');
+    resultEl.className = '';
+    resultEl.textContent = '';
+
+    if (!Number.isFinite(qrsV) || qrsV <= 0){
+      resultEl.className = 'moderate';
+      resultEl.innerHTML = "Enter a valid <strong>QRS</strong> value (ms).";
+      return;
+    }
+    if (!Number.isFinite(lvefV) || lvefV <= 0 || lvefV > 100){
+      resultEl.className = 'moderate';
+      resultEl.innerHTML = "Enter a valid <strong>LVEF</strong> value (0–100%).";
+      return;
+    }
+
+    // compute LP
+    const LP = 0.25*sex + 0.84*nsvt + 0.57*syncope + 0.47*fam + 0.007*qrsV - 0.04*lvefV + 0.38*af + betaLGE*lge;
+
+    // compute risk
+    const S0 = 0.9044804;
+    const expLP = Math.exp(LP);
+    const survAdj = Math.pow(S0, expLP);
+    const risk = 1 - survAdj;
+    const perc = (risk*100);
+
+    // format and colour
+    const percStr = perc.toFixed(1) + "%";
+    const icdThreshold = 8.5; // paper suggested threshold for ICD consideration
+    let cls = '';
+    let label = '';
+    if (perc < 5) { cls = 'low'; label = 'Low risk'; }
+    else if (perc < icdThreshold) { cls = 'moderate'; label = 'Intermediate risk'; }
+    else { cls = 'high'; label = 'High risk — above ICD consideration threshold'; }
+
+    resultEl.className = cls;
+    resultEl.innerHTML = `<div style="font-size:22px">${percStr}</div><div style="font-size:13px;margin-top:6px">${label}</div>`;
+
+    // ICD note
+    const noteEl = document.getElementById('icd-note');
+    noteEl.style.display = 'block';
+    if (perc >= icdThreshold){
+      noteEl.innerHTML = `<strong style="color:#b30000">Result ≥ ${icdThreshold}%:</strong> Model indicates risk above the threshold used in the publication for ICD consideration. Use with clinical context.`;
+    } else {
+      noteEl.innerHTML = `Result below ${icdThreshold}%. Model indicates lower calculated risk; consider other clinical factors (LGE, genotype, symptoms, comorbidity).`;
+    }
+  }
+</script>
+</body>
+</html>
